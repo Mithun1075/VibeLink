@@ -1,0 +1,1 @@
+{"scripts":{"dev":"vite","build":"vite build"},"dependencies":{"@vitejs/plugin-react":"latest","axios":"latest","lucide-react":"latest","react":"latest","react-dom":"latest","react-router-dom":"latest","socket.io-client":"latest"},"devDependencies":{"vite":"latest","tailwindcss":"latest","@tailwindcss/vite":"latest"}}
