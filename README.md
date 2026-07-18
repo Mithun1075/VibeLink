@@ -87,15 +87,14 @@ GEMINI_API_KEY=your_gemini_api_key
 ---
 
 ## 📷 Project Preview
-
-Add screenshots of:
+(I'll Add screenshots of:
 
 - Login Page
 - Home Page
 - Role Selection
 - Waiting Room
 - Video Interview Page
-- AI Interview Assistant
+- AI Interview Assistant)
 
 ---
 
