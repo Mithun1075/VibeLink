@@ -364,19 +364,19 @@ export default function MeetingPage() {
             } else if (event.type === "chat") {
               setMessages((current) => [...current, event]);
             } else if (event.type === "leave") {
-              setPeerDetected(false);
-              setStatus(
-                "Your participant left. Waiting for another participant...",
-              );
-              setStatus("Waiting for another participant...");
-              if (remoteVideo.current) remoteVideo.current.srcObject = null;
-              peerRef.current?.close();
-              peerRef.current = null;
-              pendingCandidatesRef.current = [];
-              offerSentRef.current = false;
-              makingOfferRef.current = false;
-              initiatorRef.current = false;
-              iceRestartRequestedRef.current = false;
+              alert("Your interview partner has left the meeting.");
+
+              leavingRef.current = true;
+              cleanup(false);
+
+              navigate("/rooms");
+            } else if (event.type === "partner_disconnected") {
+              alert("Your interview partner disconnected unexpectedly.");
+
+              leavingRef.current = true;
+              cleanup(false);
+
+              navigate("/rooms");
             }
           } catch (signalError) {
             setError(`Meeting signaling error: ${signalError.message}`);
@@ -457,7 +457,7 @@ export default function MeetingPage() {
   const leave = () => {
     leavingRef.current = true;
     cleanup(true);
-    navigate("/");
+    navigate("/rooms");
   };
 
   if (!room) return <main className="loading">Loading your private room…</main>;
