@@ -5,7 +5,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.conf import settings
 from accounts.models import User
-from rooms.models import InterviewRoom, Message
+from rooms.models import InterviewRoom, Participant, Message
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +23,46 @@ class MeetingConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.accept()
+
         self.joined = False
+        self.intentional_leave = False
         logger.info('Meeting WebSocket connected: room=%s user=%s', self.code, self.user.id)
 
     async def disconnect(self, close_code):
-        if not hasattr(self, 'group'):
+        if not hasattr(self, "group"):
             return
-        if getattr(self, 'joined', False):
-            await self.channel_layer.group_send(self.group, {
-                'type': 'relay_event', 'event': 'leave', 'sender': self.channel_name,
-                'payload': {'participant': getattr(self.user, 'full_name', 'Participant')},
-            })
-        await self.channel_layer.group_discard(self.group, self.channel_name)
-        logger.info('Meeting WebSocket disconnected: room=%s user=%s code=%s', self.code, self.user.id, close_code)
 
+        if getattr(self, "joined", False) and not self.intentional_leave:
+            await self.channel_layer.group_send(
+                self.group,
+                {
+                    "type": "relay_event",
+                    "event": "partner_disconnected",
+                    "sender": self.channel_name,
+                    "payload": {
+                        "participant": getattr(
+                            self.user,
+                            "full_name",
+                            "Participant",
+                        )
+                    },
+                },
+            )
+
+        # Cleanup database
+        await self.cleanup_room()
+
+        await self.channel_layer.group_discard(
+            self.group,
+            self.channel_name,
+        )
+
+        logger.info(
+            "Meeting WebSocket disconnected: room=%s user=%s code=%s",
+            self.code,
+            self.user.id,
+            close_code,
+        )
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -79,9 +105,8 @@ class MeetingConsumer(AsyncWebsocketConsumer):
         })
         if event in {'offer', 'answer', 'ice_candidate', 'leave'}:
             logger.info('Relayed WebRTC event: room=%s user=%s event=%s', self.code, self.user.id, event)
-        if event == 'leave':
-            # The client closes immediately after sending leave; do not send a
-            # second leave notification from disconnect().
+        if event == "leave":
+            self.intentional_leave = True
             self.joined = False
 
     async def relay_event(self, event):
@@ -109,3 +134,24 @@ class MeetingConsumer(AsyncWebsocketConsumer):
     def save_message(self, content):
         room = InterviewRoom.objects.get(room_code=self.code)
         return Message.objects.create(room=room, sender=self.user, message=content)
+    
+    @database_sync_to_async
+    def cleanup_room(self):
+        try:
+            room = InterviewRoom.objects.get(room_code=self.code)
+
+            # Remove this participant
+            Participant.objects.filter(
+                room=room,
+                user=self.user,
+            ).delete()
+
+            count = room.participants.count()
+
+            if count <= 1:
+                Participant.objects.filter(room=room).delete()
+                room.delete()
+
+        except InterviewRoom.DoesNotExist:
+            pass
+            
